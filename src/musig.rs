@@ -779,7 +779,10 @@ mod tests {
     fn multi_signature() {
         let keypairs: Vec<Keypair> = (0..16).map(|_| Keypair::generate()).collect();
 
-        let t = signing_context(b"multi-sig").bytes(b"We are legion!");
+        // let t = signing_context(b"multi-sig").bytes(b"We are legion!");
+        let t = Transcript::new(b"hello");
+
+        println!("this is the signed message b'hello'");
         let mut commits: Vec<_> = keypairs.iter().map( |k| k.musig(t.clone()) ).collect();
         for i in 0..commits.len() {
         let r = commits[i].our_commitment();
@@ -799,6 +802,7 @@ mod tests {
             reveal_msgs.push(r);
         }
         let pk = reveals[0].public_key();
+        println!("this is the public key {:?}", &pk);
 
         let mut cosign_msgs: Vec<Cosignature> = Vec::with_capacity(reveals.len());
         let mut cosigns: Vec<_> = reveals.drain(..).map( |c| { assert_eq!(pk, c.public_key()); c.cosign_stage() } ).collect();
@@ -818,7 +822,7 @@ mod tests {
             c.add(keypairs[i].public.clone(),reveal_msgs[i].clone(),cosign_msgs[i].clone()).unwrap();
         }
         let signature = c.signature();
-
+        println!("this is the signature {:?}" , &signature);
         assert!( pk.verify(t,&signature).is_ok() );
         for i in 0..cosigns.len() {
             assert_eq!(pk, cosigns[i].public_key());
