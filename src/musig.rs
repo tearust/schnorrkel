@@ -33,6 +33,8 @@
 
 use core::borrow::{Borrow};  // BorrowMut
 
+// use sp_core::sr25519;
+
 #[cfg(feature = "alloc")]
 use alloc::{collections::btree_map::{BTreeMap, Entry}};
 #[cfg(feature = "std")]
@@ -200,7 +202,7 @@ impl Commitment {
 // TODO: serde_boilerplate!(Commitment);
 
 
-/// Internal representation of revealed points 
+/// Internal representation of revealed points
 #[derive(Debug,Clone,PartialEq,Eq)]
 struct RevealedPoints([RistrettoPoint; REWINDS]);
 
@@ -217,7 +219,7 @@ impl RevealedPoints {
         // self.check_length() ?;
         let mut reveal = [0u8; 32*REWINDS];
         for (o,i) in reveal.chunks_mut(32).zip(&self.0) {
-            o.copy_from_slice(i.compress().as_bytes()); 
+            o.copy_from_slice(i.compress().as_bytes());
         }
         Reveal(reveal)
     }
@@ -255,7 +257,7 @@ impl Reveal {
 
     fn to_commitment(&self) -> SignatureResult<Commitment> {
         self.check_length() ?;
-        Ok(Commitment::for_R( self.iter_points() )) 
+        Ok(Commitment::for_R( self.iter_points() ))
     }
 
     fn into_points(&self) -> SignatureResult<RevealedPoints> {
@@ -398,7 +400,7 @@ impl<T: SigningTranscript+Clone,S> MuSig<T,S> {
 
     /// Computes the delinearizing `R` values.
     ///
-    /// Requires `self.t` be in its final state. 
+    /// Requires `self.t` be in its final state.
     /// Only compatable with `compute_public_key` when calling it with `require_reveal=true`
     #[allow(non_snake_case)]
     fn rewinder(&self) -> impl Fn(&PublicKey) -> [Scalar; REWINDS] {
@@ -440,7 +442,7 @@ impl<T: SigningTranscript+Clone,S> MuSig<T,S> {
 pub trait TranscriptStages {}
 impl<K> TranscriptStages for CommitStage<K> where K: Borrow<Keypair> {}
 impl<K> TranscriptStages for RevealStage<K> where K: Borrow<Keypair> {}
-impl<T,S> MuSig<T,S> 
+impl<T,S> MuSig<T,S>
 where T: SigningTranscript+Clone, S: TranscriptStages
 {
     /// We permit extending the transcript whenever you like, so
@@ -542,7 +544,7 @@ pub struct RevealStage<K: Borrow<Keypair>> {
     R_me: Reveal,
 }
 
-impl<K,T> MuSig<T,RevealStage<K>> 
+impl<K,T> MuSig<T,RevealStage<K>>
 where K: Borrow<Keypair>, T: SigningTranscript+Clone
 {
     /// Reveal our `R` contribution to send to all other cosigners
@@ -763,6 +765,7 @@ mod tests {
     use std::vec::Vec;
 
     use super::*;
+    use crate::context::SigningContext;
 
     #[test]
     fn aggregation_btreeemap_vs_slice() {
@@ -779,8 +782,8 @@ mod tests {
     fn multi_signature() {
         let keypairs: Vec<Keypair> = (0..16).map(|_| Keypair::generate()).collect();
 
-        // let t = signing_context(b"multi-sig").bytes(b"We are legion!");
-        let t = Transcript::new(b"hello");
+        let t = signing_context(b"substrate").bytes(b"We are legion!");
+        // let t = Transcript::new(b"hello");
 
         println!("this is the signed message b'hello'");
         let mut commits: Vec<_> = keypairs.iter().map( |k| k.musig(t.clone()) ).collect();
@@ -802,7 +805,7 @@ mod tests {
             reveal_msgs.push(r);
         }
         let pk = reveals[0].public_key();
-        println!("this is the public key {:?}", &pk);
+        println!("this is the public key {:?}", &pk.to_bytes());
 
         let mut cosign_msgs: Vec<Cosignature> = Vec::with_capacity(reveals.len());
         let mut cosigns: Vec<_> = reveals.drain(..).map( |c| { assert_eq!(pk, c.public_key()); c.cosign_stage() } ).collect();
@@ -822,7 +825,10 @@ mod tests {
             c.add(keypairs[i].public.clone(),reveal_msgs[i].clone(),cosign_msgs[i].clone()).unwrap();
         }
         let signature = c.signature();
-        println!("this is the signature {:?}" , &signature);
+        println!("this is the signature {:?}" , signature.to_bytes());
+
+        // println!("######## {}" sp_io::crypto::ed25519_verify(&signature, &t[..], &pk));
+
         assert!( pk.verify(t,&signature).is_ok() );
         for i in 0..cosigns.len() {
             assert_eq!(pk, cosigns[i].public_key());
